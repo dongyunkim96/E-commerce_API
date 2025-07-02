@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 
 # Initialize Flask app
@@ -25,6 +26,7 @@ class User(db.Model):
     name = db.Column(db.String(100), nullable=False)
     address = db.Column(db.String(200))
     email = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)  # 비밀번호 추가
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -48,6 +50,7 @@ class UserSchema(ma.SQLAlchemySchema):
     name = ma.auto_field()
     address = ma.auto_field()
     email = ma.auto_field()
+    # password는 제외: 응답에 포함되지 않도록
 
 class OrderSchema(ma.SQLAlchemySchema):
     class Meta:
@@ -72,12 +75,27 @@ orders_schema = OrderSchema(many=True)
 product_schema = ProductSchema()
 products_schema = ProductSchema(many=True)
 
+# User registration endpoint
+@app.route('/users', methods=['POST'])
+def create_user():
+    data = request.json
+    hashed_password = generate_password_hash(data['password'], method='sha256')
+    new_user = User(
+        name=data['name'],
+        address=data['address'],
+        email=data['email'],
+        password=hashed_password
+    )
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify(user_schema.dump(new_user)), 201
+
 # User login endpoint
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
     user = User.query.filter_by(email=data['email']).first()
-    if user:
+    if user and check_password_hash(user.password, data['password']):
         token = create_access_token(identity=str(user.id), expires_delta=timedelta(hours=1))
         return jsonify({'access_token': token}), 200
     return jsonify({'error': 'Invalid credentials'}), 401
@@ -101,14 +119,6 @@ def get_users():
 def get_user(id):
     user = User.query.get_or_404(id)
     return jsonify(user_schema.dump(user))
-
-@app.route('/users', methods=['POST'])
-def create_user():
-    data = request.json
-    new_user = User(name=data['name'], address=data['address'], email=data['email'])
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify(user_schema.dump(new_user)), 201
 
 @app.route('/users/<int:id>', methods=['PUT'])
 @jwt_required()
