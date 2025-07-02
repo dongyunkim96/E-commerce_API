@@ -26,7 +26,7 @@ class User(db.Model):
     name = db.Column(db.String(100), nullable=False)
     address = db.Column(db.String(200))
     email = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)  # 비밀번호 추가
+    password = db.Column(db.String(200), nullable=False)  
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -50,7 +50,6 @@ class UserSchema(ma.SQLAlchemySchema):
     name = ma.auto_field()
     address = ma.auto_field()
     email = ma.auto_field()
-    # password는 제외: 응답에 포함되지 않도록
 
 class OrderSchema(ma.SQLAlchemySchema):
     class Meta:
